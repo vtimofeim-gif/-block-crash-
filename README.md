@@ -1,1 +1,725 @@
 # -block-crash-
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<title>BLOCK CRASH</title>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<style>
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at top, #29345f, #0b1020 65%);
+    color: white;
+    font-family: Arial, sans-serif;
+    overflow: hidden;
+}
+
+.app {
+    max-width: 520px;
+    margin: auto;
+    min-height: 100vh;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0 18px;
+}
+
+.logo {
+    font-size: 25px;
+    font-weight: 900;
+    letter-spacing: 2px;
+}
+
+.score {
+    text-align: right;
+}
+
+.score b {
+    font-size: 22px;
+}
+
+.score small {
+    display: block;
+    color: #8993ad;
+}
+
+.screen {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.menu {
+    text-align: center;
+}
+
+.menu h1 {
+    font-size: 48px;
+    line-height: .9;
+    letter-spacing: 3px;
+    margin: 0 0 15px;
+}
+
+.menu p {
+    color: #9ba5bf;
+    line-height: 1.5;
+    margin-bottom: 30px;
+}
+
+button {
+    width: 100%;
+    border: 0;
+    border-radius: 16px;
+    padding: 16px;
+    margin-top: 10px;
+    font-size: 17px;
+    font-weight: 800;
+    color: white;
+    background: #6c5ce7;
+    box-shadow: 0 8px 25px #0005;
+}
+
+button.secondary {
+    background: #202943;
+}
+
+.board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 5px;
+    background: #11182b;
+    padding: 7px;
+    border-radius: 18px;
+}
+
+.cell {
+    aspect-ratio: 1;
+    border-radius: 7px;
+    background: #202943;
+}
+
+.cell.filled {
+    background: #5f8cff;
+    box-shadow: inset 0 0 0 2px #ffffff20;
+}
+
+.pieces {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.piece {
+    min-height: 90px;
+    background: #151d34;
+    border: 2px solid transparent;
+    border-radius: 15px;
+    display: grid;
+    place-items: center;
+}
+
+.piece.selected {
+    border-color: #8e83ff;
+    box-shadow: 0 0 0 3px #6c5ce733;
+}
+
+.mini {
+    display: grid;
+    gap: 3px;
+}
+
+.mini i {
+    width: 15px;
+    height: 15px;
+    background: #5f8cff;
+    border-radius: 4px;
+}
+
+.mini i.off {
+    visibility: hidden;
+}
+
+.controls {
+    display: flex;
+    gap: 10px;
+}
+
+.controls button {
+    flex: 1;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.hint {
+    text-align: center;
+    color: #8993ad;
+    font-size: 13px;
+    margin: 10px 0;
+}
+
+#toast {
+    position: fixed;
+    left: 50%;
+    bottom: 30px;
+    transform: translateX(-50%) translateY(20px);
+    background: white;
+    color: #111;
+    padding: 10px 16px;
+    border-radius: 99px;
+    font-weight: 800;
+    opacity: 0;
+    transition: .2s;
+    pointer-events: none;
+}
+
+#toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+</style>
+</head>
+
+<body>
+
+<div class="app">
+
+<header>
+    <div class="logo">BLOCK CRASH</div>
+
+    <div class="score">
+        <b id="score">0</b>
+        <small>BEST <span id="best">0</span></small>
+    </div>
+</header>
+
+<section id="menu" class="screen menu">
+
+    <h1>
+        BLOCK<br>
+        CRASH
+    </h1>
+
+    <p>
+        Собирай линии, делай комбо
+        и побивай свой рекорд.
+    </p>
+
+    <button id="start">
+        🎮 ИГРАТЬ
+    </button>
+
+    <button id="help" class="secondary">
+        ❓ КАК ИГРАТЬ
+    </button>
+
+</section>
+
+
+<section id="game" class="screen hidden">
+
+    <div id="board" class="board"></div>
+
+    <div class="hint">
+        Выбери блок снизу и нажми на клетку поля
+    </div>
+
+    <div id="pieces" class="pieces"></div>
+
+    <div class="controls">
+
+        <button id="restart">
+            ↻ ЗАНОВО
+        </button>
+
+        <button id="share" class="secondary">
+            📤 ПОДЕЛИТЬСЯ
+        </button>
+
+    </div>
+
+    <button id="back" class="secondary">
+        ⌂ МЕНЮ
+    </button>
+
+</section>
+
+</div>
+
+<div id="toast"></div>
+
+
+<script>
+
+const tg = window.Telegram?.WebApp;
+
+if (tg) {
+    tg.ready();
+    tg.expand();
+
+    tg.setHeaderColor?.("#0b1020");
+    tg.setBackgroundColor?.("#0b1020");
+}
+
+const SIZE = 8;
+
+const shapes = [
+
+    [[0,0]],
+
+    [[0,0],[0,1]],
+
+    [[0,0],[1,0]],
+
+    [[0,0],[0,1],[0,2]],
+
+    [[0,0],[1,0],[2,0]],
+
+    [[0,0],[0,1],[1,0],[1,1]],
+
+    [[0,0],[0,1],[0,2],[1,1]],
+
+    [[0,0],[1,0],[1,1]],
+
+    [[0,0],[0,1],[0,2],[0,3]],
+
+    [[0,0],[1,0],[2,0],[2,1]],
+
+    [[0,0],[0,1],[1,1],[2,1]]
+
+];
+
+let grid = [];
+
+let pieces = [];
+
+let selected = -1;
+
+let score = 0;
+
+let best =
+    Number(localStorage.getItem("blockCrashBest") || 0);
+
+document.getElementById("best").textContent = best;
+
+
+function vibrate(type = "light") {
+
+    try {
+
+        tg?.HapticFeedback?.impactOccurred(type);
+
+    } catch(e) {}
+
+}
+
+
+function newGame() {
+
+    grid =
+        Array.from(
+            {length: SIZE},
+            () => Array(SIZE).fill(0)
+        );
+
+    score = 0;
+
+    selected = -1;
+
+    makePieces();
+
+    render();
+
+    document
+        .getElementById("menu")
+        .classList.add("hidden");
+
+    document
+        .getElementById("game")
+        .classList.remove("hidden");
+}
+
+
+function makePieces() {
+
+    pieces =
+        Array.from(
+            {length: 3},
+            () =>
+                shapes[
+                    Math.floor(
+                        Math.random() * shapes.length
+                    )
+                ]
+        );
+}
+
+
+function render() {
+
+    document.getElementById("score").textContent = score;
+
+    document.getElementById("best").textContent = best;
+
+    const board =
+        document.getElementById("board");
+
+    board.innerHTML = "";
+
+    for(let r = 0; r < SIZE; r++) {
+
+        for(let c = 0; c < SIZE; c++) {
+
+            const cell =
+                document.createElement("div");
+
+            cell.className =
+                "cell" +
+                (grid[r][c] ? " filled" : "");
+
+            cell.onclick =
+                () => place(r,c);
+
+            board.appendChild(cell);
+        }
+    }
+
+    const container =
+        document.getElementById("pieces");
+
+    container.innerHTML = "";
+
+    pieces.forEach((shape,index) => {
+
+        const piece =
+            document.createElement("div");
+
+        piece.className =
+            "piece" +
+            (selected === index
+                ? " selected"
+                : "");
+
+        const maxR =
+            Math.max(...shape.map(x => x[0])) + 1;
+
+        const maxC =
+            Math.max(...shape.map(x => x[1])) + 1;
+
+        const mini =
+            document.createElement("div");
+
+        mini.className = "mini";
+
+        mini.style.gridTemplateColumns =
+            `repeat(${maxC},15px)`;
+
+        for(let r=0;r<maxR;r++) {
+
+            for(let c=0;c<maxC;c++) {
+
+                const block =
+                    document.createElement("i");
+
+                if(
+                    !shape.some(
+                        x => x[0] === r &&
+                             x[1] === c
+                    )
+                ) {
+                    block.className = "off";
+                }
+
+                mini.appendChild(block);
+            }
+        }
+
+        piece.appendChild(mini);
+
+        piece.onclick = () => {
+
+            selected = index;
+
+            vibrate();
+
+            render();
+        };
+
+        container.appendChild(piece);
+
+    });
+
+}
+
+
+function canPlace(shape,row,col) {
+
+    return shape.every(([r,c]) => {
+
+        const rr = row + r;
+        const cc = col + c;
+
+        return (
+            rr >= 0 &&
+            rr < SIZE &&
+            cc >= 0 &&
+            cc < SIZE &&
+            !grid[rr][cc]
+        );
+
+    });
+
+}
+
+
+function place(row,col) {
+
+    if(selected < 0) {
+
+        toast("Сначала выбери блок");
+
+        return;
+    }
+
+    const shape = pieces[selected];
+
+    if(!canPlace(shape,row,col)) {
+
+        vibrate("heavy");
+
+        toast("Сюда блок не помещается");
+
+        return;
+    }
+
+    shape.forEach(([r,c]) => {
+
+        grid[row+r][col+c] = 1;
+
+    });
+
+    score += shape.length;
+
+    vibrate();
+
+    let rows = [];
+
+    let cols = [];
+
+    for(let i=0;i<SIZE;i++) {
+
+        if(grid[i].every(Boolean))
+            rows.push(i);
+
+        if(
+            grid.every(row => row[i])
+        )
+            cols.push(i);
+
+    }
+
+    if(rows.length || cols.length) {
+
+        const lines =
+            new Set([
+                ...rows.map(x => "r"+x),
+                ...cols.map(x => "c"+x)
+            ]).size;
+
+        for(let r=0;r<SIZE;r++) {
+
+            for(let c=0;c<SIZE;c++) {
+
+                if(
+                    rows.includes(r) ||
+                    cols.includes(c)
+                ) {
+                    grid[r][c] = 0;
+                }
+
+            }
+
+        }
+
+        const bonus =
+            lines * 10 +
+            (lines > 1
+                ? (lines-1)*15
+                : 0);
+
+        score += bonus;
+
+        vibrate("medium");
+
+        toast(
+            "💥 +" +
+            bonus +
+            " COMBO!"
+        );
+    }
+
+    pieces.splice(selected,1);
+
+    selected = -1;
+
+    if(!pieces.length)
+        makePieces();
+
+    render();
+
+    if(!movesAvailable()) {
+
+        if(score > best) {
+
+            best = score;
+
+            localStorage.setItem(
+                "blockCrashBest",
+                best
+            );
+
+        }
+
+        setTimeout(() => {
+
+            toast(
+                "Игра окончена • " +
+                score +
+                " очков"
+            );
+
+        },100);
+
+    }
+
+}
+
+
+function movesAvailable() {
+
+    return pieces.some(shape =>
+
+        grid.some((row,r) =>
+
+            row.some((_,c) =>
+
+                canPlace(shape,r,c)
+
+            )
+
+        )
+
+    );
+
+}
+
+
+function shareResult() {
+
+    const text =
+        `🏆 Я набрал ${score} очков в BLOCK CRASH!`;
+
+    if(tg) {
+
+        const url =
+            `https://t.me/share/url?url=&text=${
+                encodeURIComponent(text)
+            }`;
+
+        tg.openTelegramLink(url);
+
+    } else {
+
+        navigator.clipboard?.writeText(text);
+
+        toast("Результат скопирован");
+
+    }
+
+}
+
+
+function toast(message) {
+
+    const element =
+        document.getElementById("toast");
+
+    element.textContent = message;
+
+    element.classList.add("show");
+
+    clearTimeout(window.toastTimer);
+
+    window.toastTimer =
+        setTimeout(
+            () => element.classList.remove("show"),
+            1200
+        );
+}
+
+
+document
+    .getElementById("start")
+    .onclick = newGame;
+
+
+document
+    .getElementById("restart")
+    .onclick = newGame;
+
+
+document
+    .getElementById("share")
+    .onclick = shareResult;
+
+
+document
+    .getElementById("back")
+    .onclick = () => {
+
+        document
+            .getElementById("game")
+            .classList.add("hidden");
+
+        document
+            .getElementById("menu")
+            .classList.remove("hidden");
+
+    };
+
+
+document
+    .getElementById("help")
+    .onclick = () => {
+
+        toast(
+            "Выбирай блоки и заполняй линии!"
+        );
+
+    };
+
+</script>
+
+</body>
+</html>
